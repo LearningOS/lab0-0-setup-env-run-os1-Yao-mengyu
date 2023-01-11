@@ -62,8 +62,8 @@ lazy_static! {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
             syscall_times: empty_vec.clone(),
-            time: 0,
-            pre_start_time: 0,
+
+            start_time: 0,
         }; MAX_APP_NUM];
       //  println!("here2");
 
@@ -95,7 +95,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
-        task0.pre_start_time = get_time_us()/1000;
+        task0.start_time = get_time_us()/1000;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -111,7 +111,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Ready;
-        inner.tasks[current].time += get_time_us()/1000 - inner.tasks[current].pre_start_time;
+      //  inner.tasks[current].time += get_time_us()/1000 - inner.tasks[current].pre_start_time;
     }
 
     /// Change the status of current `Running` task into `Exited`.
@@ -119,7 +119,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
         inner.tasks[current].task_status = TaskStatus::Exited;
-        inner.tasks[current].time += get_time_us()/1000 - inner.tasks[current].pre_start_time;
+       // inner.tasks[current].time += get_time_us()/1000 - inner.tasks[current].pre_start_time;
     }
 
     /// Find next task to run and return task id.
@@ -140,7 +140,7 @@ impl TaskManager {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
-            inner.tasks[next].pre_start_time = get_time_us()/1000;
+            if inner.tasks[next].start_time == 0 { inner.tasks[next].start_time = get_time_us()/1000;}
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -212,6 +212,6 @@ pub fn get_current_task_info(ti: &mut TaskInfo) -> isize {
     let cur_task = inner.tasks[current];
     ti.status = cur_task.task_status;
     ti.syscall_times = cur_task.syscall_times;
-    ti.time = cur_task.time;
+    ti.time = get_time_us()/1000 - cur_task.start_time;
     0
 }
