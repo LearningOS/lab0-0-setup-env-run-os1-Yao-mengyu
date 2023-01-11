@@ -55,13 +55,13 @@ struct TaskManagerInner {
 lazy_static! {
     /// a `TaskManager` instance through lazy_static!
     pub static ref TASK_MANAGER: TaskManager = {
-        let empty_vec: [u32; MAX_SYSCALL_NUM] = [0; MAX_SYSCALL_NUM];
+       // let empty_vec: [u32; MAX_SYSCALL_NUM] = [0; MAX_SYSCALL_NUM];
         let num_app = get_num_app();
        // println!("here");
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            syscall_times: empty_vec.clone(),
+            syscall_times: [0; MAX_SYSCALL_NUM],
 
             start_time: 0,
         }; MAX_APP_NUM];
@@ -72,15 +72,17 @@ lazy_static! {
             t.task_status = TaskStatus::Ready;
         }
 
-        TaskManager {
+       let ret = TaskManager {
             num_app,
             inner: unsafe {
                 UPSafeCell::new(TaskManagerInner {
-                    tasks,
+                    tasks: tasks,
                     current_task: 0,
                 })
             },
-        }
+        };
+       // println!("ready");
+        ret
     };
    
 
@@ -92,6 +94,7 @@ impl TaskManager {
     /// Generally, the first task in task list is an idle task (we call it zero process later).
     /// But in ch3, we load apps statically, so the first task is a real app.
     fn run_first_task(&self) -> ! {
+      //  println!("run first task");
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
@@ -168,6 +171,7 @@ impl TaskManager {
 
 /// Run the first task in task list.
 pub fn run_first_task() {
+  //  println!("ready to run first");
     TASK_MANAGER.run_first_task();
 }
 
