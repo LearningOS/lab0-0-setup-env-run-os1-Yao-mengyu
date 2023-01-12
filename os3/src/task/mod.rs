@@ -9,6 +9,7 @@
 //! Be careful when you see [`__switch`]. Control flow around this function
 //! might not be what you expect.
 
+
 mod context;
 mod switch;
 #[allow(clippy::module_inception)]
@@ -19,6 +20,7 @@ use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use crate::syscall::TaskInfo;
 use crate::timer::get_time_us;
+use crate::syscall::{SYSCALL_WRITE, SYSCALL_EXIT,SYSCALL_YIELD, SYSCALL_GET_TIME, SYSCALL_TASK_INFO};
 
 use lazy_static::*;
 pub use switch::__switch;
@@ -61,7 +63,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            syscall_times: [0; MAX_SYSCALL_NUM],
+            syscall_times: [0;5],
 
             start_time: 0,
         }; MAX_APP_NUM];
@@ -163,10 +165,32 @@ impl TaskManager {
     fn update_syscall_num(&self, syscall_id: usize){
         let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        inner.tasks[current].syscall_times[syscall_id] += 1;
+        inner.tasks[current].syscall_times[map_syscall_to_small_range(syscall_id)] += 1;
         drop(inner);
     }
 
+}
+
+fn map_syscall_to_small_range(syscall_id: usize) ->usize{
+    match syscall_id{
+        SYSCALL_WRITE => 0,
+        SYSCALL_YIELD => 1,
+        SYSCALL_EXIT => 2,
+        SYSCALL_GET_TIME => 3,
+        SYSCALL_TASK_INFO => 4,
+        _ => todo!(),
+    }
+}
+
+fn map_small_range_to_syscall(id: usize) -> usize{
+    match id{
+        0 => SYSCALL_WRITE,
+        1 => SYSCALL_YIELD,
+        2 => SYSCALL_EXIT,
+        3 => SYSCALL_GET_TIME,
+        4 => SYSCALL_TASK_INFO,
+        _ => todo!(),
+    }
 }
 
 /// Run the first task in task list.
@@ -215,7 +239,11 @@ pub fn get_current_task_info(ti: &mut TaskInfo) -> isize {
     let current = inner.current_task;
     let cur_task = inner.tasks[current];
     ti.status = cur_task.task_status;
-    ti.syscall_times = cur_task.syscall_times;
+    ti.syscall_times = [0; MAX_SYSCALL_NUM];
+    for i in 0..5{
+        ti.syscall_times[map_small_range_to_syscall(i)]= cur_task.syscall_times[i];
+    }
+   // ti.syscall_times = cur_task.syscall_times;
     ti.time = get_time_us()/1000 - cur_task.start_time;
     0
 }
